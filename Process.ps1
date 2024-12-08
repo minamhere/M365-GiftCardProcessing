@@ -1,71 +1,49 @@
 # Parameters
-$ClientId = "YOUR_APP_CLIENT_ID"   # Replace with your Azure App's Client ID
-$TenantId = "YOUR_TENANT_ID"       # Replace with your Azure App's Tenant ID
-
 $ParentFolderName = "Gift Cards"
 $SubFolderName = "Unprocessed"
 
-# Get an access token interactively
-$TokenResponse = Get-MsalToken -ClientId $ClientId -TenantId $TenantId -RedirectUri "https://login.microsoftonline.com/common/oauth2/nativeclient" -Scopes "Mail.Read"
-$AccessToken = $TokenResponse.AccessToken
+# Step 1: Connect to Microsoft Graph
+Write-Output "Authenticating to Microsoft Graph..."
+Connect-MgGraph -Scopes "Mail.Read"
 
-# Define API endpoints
-$MailFoldersEndpoint = "https://graph.microsoft.com/v1.0/me/mailFolders"
-$MessagesEndpointTemplate = "https://graph.microsoft.com/v1.0/me/mailFolders/{folder-id}/messages"
-
-# Function to find a folder by name within a parent folder
-function Get-ChildFolderId {
-    param (
-        [string]$ParentFolderId,
-        [string]$ChildFolderName
-    )
-
-    $ChildFoldersEndpoint = "https://graph.microsoft.com/v1.0/me/mailFolders/$ParentFolderId/childFolders"
-    $ChildFolders = Invoke-RestMethod -Uri $ChildFoldersEndpoint -Headers @{Authorization = "Bearer $AccessToken"} -Method Get
-
-    $ChildFolder = $ChildFolders.value | Where-Object { $_.displayName -eq $ChildFolderName }
-
-    if ($ChildFolder) {
-        return $ChildFolder.id
-    } else {
-        return $null
-    }
-}
-
-# Step 1: Get the parent folder ID
+# Step 2: Get all mail folders
 Write-Output "Fetching mail folders..."
-$MailFolders = Invoke-RestMethod -Uri $MailFoldersEndpoint -Headers @{Authorization = "Bearer $AccessToken"} -Method Get
+$MailFolders = Get-MgUserMailFolder -UserId "me"
 
-$ParentFolder = $MailFolders.value | Where-Object { $_.displayName -eq $ParentFolderName }
+# Step 3: Find the parent folder
+$ParentFolder = $MailFolders | Where-Object { $_.DisplayName -eq $ParentFolderName }
 
 if (-not $ParentFolder) {
     Write-Output "Parent folder '$ParentFolderName' not found. Exiting script."
+    Disconnect-MgGraph
     exit
 }
 
-$ParentFolderId = $ParentFolder.id
+$ParentFolderId = $ParentFolder.Id
 Write-Output "Found parent folder '$ParentFolderName' with ID: $ParentFolderId"
 
-# Step 2: Get the subfolder ID
-$SubFolderId = Get-ChildFolderId -ParentFolderId $ParentFolderId -ChildFolderName $SubFolderName
+# Step 4: Find the subfolder within the parent folder
+$ChildFolders = Get-MgUserMailFolderChildFolder -UserId "me" -MailFolderId $ParentFolderId
+$SubFolder = $ChildFolders | Where-Object { $_.DisplayName -eq $SubFolderName }
 
-if (-not $SubFolderId) {
+if (-not $SubFolder) {
     Write-Output "Subfolder '$SubFolderName' under '$ParentFolderName' not found. Exiting script."
+    Disconnect-MgGraph
     exit
 }
 
+$SubFolderId = $SubFolder.Id
 Write-Output "Found subfolder '$SubFolderName' with ID: $SubFolderId"
 
-# Step 3: Fetch messages in the subfolder
-$MessagesEndpoint = $MessagesEndpointTemplate -replace "{folder-id}", $SubFolderId
+# Step 5: Fetch messages in the subfolder
+Write-Output "Fetching messages from subfolder '$SubFolderName'..."
+$Messages = Get-MgUserMailFolderMessage -UserId "me" -MailFolderId $SubFolderId
 
-$Messages = Invoke-RestMethod -Uri $MessagesEndpoint -Headers @{Authorization = "Bearer $AccessToken"} -Method Get
-
-# Process each email
-foreach ($Message in $Messages.value) {
-    $Subject = $Message.subject
-    $Sender = $Message.sender.emailAddress.address
-    $Body = $Message.body.content
+# Step 6: Process each email
+foreach ($Message in $Messages) {
+    $Subject = $Message.Subject
+    $Sender = $Message.From.EmailAddress.Address
+    $Body = $Message.Body.Content
 
     Write-Output "Processing email..."
     Write-Output "Subject: $Subject"
@@ -73,3 +51,7 @@ foreach ($Message in $Messages.value) {
     Write-Output "Body: $Body"
     Write-Output "========================="
 }
+
+# Disconnect from Microsoft Graph
+Disconnect-MgGraph
+Write-Output "Disconnected from Microsoft Graph."
