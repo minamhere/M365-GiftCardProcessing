@@ -10,8 +10,8 @@ Assign Mail.Read delegated permission under API Permissions for Microsoft Graph.
 
 Copy the Application (client) ID and Directory (tenant) ID.
 
-Install the MSAL.PS module:
+Install the Microsoft.Graph module:
 
 ```powershell
-Install-Module -Name MSAL.PS -Scope CurrentUser
+Install-Module -Name Microsoft.Graph -Scope CurrentUser
 ```
