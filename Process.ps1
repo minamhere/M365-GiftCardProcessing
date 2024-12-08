@@ -8,7 +8,7 @@ Connect-MgGraph -Scopes "Mail.Read"
 
 # Step 2: Get all mail folders
 Write-Output "Fetching mail folders..."
-$MailFolders = Get-MgUserMailFolder -UserId "me"
+$MailFolders = Get-MgUserMailFolder
 
 # Step 3: Find the parent folder
 $ParentFolder = $MailFolders | Where-Object { $_.DisplayName -eq $ParentFolderName }
