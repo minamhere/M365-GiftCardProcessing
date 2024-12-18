@@ -10,25 +10,24 @@ function Handle-CostcoBHNEmail {
 
     # Regex to extract the embedded link
     $Regex = 'https:%2F%2Fegift\.activationspot\.com%2F[^\s"]*'
-    $Matches = [regex]::Matches($Body, $Regex)
+    $Match = [regex]::Match($Body, $Regex)
 
-    foreach ($Match in $Matches) {
+    if ($Match.Success) {
         $EmbeddedLink = $Match.Value
 
-        # Decode %2F to \, %26 to ?, and %3F to &
-        $CleanedLink = $EmbeddedLink -replace '%2F', '\' -replace '%26', '&' -replace '%3F', '?'
+        # Decode %2F to /, %26 to &, and %3F to ?
+        $CleanedLink = $EmbeddedLink -replace '%2F', '/' -replace '%26', '&' -replace '%3F', '?'
 
         # Remove the trailing slash and everything after the tid parameter
         $CleanedLink = $CleanedLink -replace '(&tid=[^\/]+)\/.*$', '$1'
 
         # Print the cleaned link
-        Write-Output "Extracted and Cleaned Link: $CleanedLink"
-    }
-
-    if ($Matches.Count -eq 0) {
+        Write-Output $CleanedLink
+    } else {
         Write-Output "No valid links found in this email."
     }
 }
+
 
 
 
